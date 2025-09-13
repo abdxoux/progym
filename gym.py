@@ -21,102 +21,16 @@ from datetime import timedelta
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from tkinter import filedialog, PhotoImage
-
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("green")
-
-
-def change_appearance_mode_event(new_appearance_mode):
-    ctk.set_appearance_mode(new_appearance_mode)
-
-
-def send_sms_notification(to_phone_number, message):
-    print("PHONE NUMBER", to_phone_number)
-    print("MESSAGE", message)
-
-    # Use environment variables or a configuration file to manage API keys
-    api_key=''
-
-    # Change this URL based on your requirements
-    url='https://api.semaphore.co/api/v4/priority'
-
-    payload={
-        'apikey': api_key,
-        'number': to_phone_number,
-        'message': message
-    }
-
-    # Handle specific exceptions
-    try:
-        response=requests.post(url, data=payload)
-
-        if response.status_code == 200:
-            print("SEND MESSAGE SUCCESS")
-            print(response.json())
-        else:
-            print(response.text)
-            print("ERROR SENDING MESSAGE")
-            print("STATUS CODE", response.status_code)
-    except requests.exceptions.RequestException as req_exc:
-        print("Request Exception:", req_exc)
-    except Exception as e:
-        print("Failed to send message", e)
-
-
-def check_date():
-    current_date=datetime.now()
-
-    # Get all instances in the registration table
-    conn=sqlite3.connect('SQLite db/registration_form.db')
-    cursor=conn.cursor()
-
-    cursor.execute("SELECT * FROM registration")
-    registrations=cursor.fetchall()
-
-    for registration in registrations:
-        # Get the end_date and contact_no from the registration
-        end_date=registration[15]
-        contact_no=registration[9]
-        print("Testing: ", end_date)
-        if datetime.strptime(end_date, '%Y-%m-%d') < current_date:
-            print("Expired")
-            # Update the status of the registration to "Expired"
-            cursor.execute("UPDATE registration SET status=? WHERE id=?", ("Expired", registration[0]))
-            conn.commit()
-
-            # Send SMS to the member
-            sms_message="Your gym membership has expired. Renew your subscription to continue accessing D'GRIT GYM."
-            send_sms_notification(contact_no, sms_message)
-
-
-# create a function that sends sms for 3 days before expiration
-def send_sms_for_expiration():
-    current_date=datetime.now()
-
-    # Get all instances in the registration table
-    conn=sqlite3.connect('SQLite db/registration_form.db')
-    cursor=conn.cursor()
-
-    cursor.execute("SELECT * FROM registration")
-    registrations=cursor.fetchall()
-
-    for registration in registrations:
-        # Get the end_date and contact_no from the registration
-        end_date=registration[15]
-        contact_no=registration[9]
-
-        # Check if the end_date is 3 days from the current date
-        if datetime.strptime(end_date, '%Y-%m-%d') == current_date + timedelta(days=3):
-            print("3 days before expiration")
-            # Send SMS to the member
-            sms_message="Your gym membership will expire in 3 days. Renew your subscription to continue accessing D'GRIT GYM."
-            send_sms_notification(contact_no, sms_message)
-
-
+from appearance_manager import AppearanceManager
+from sms_notifier import SMSNotifier
+from registration_manager import RegistrationManager
 # MAIN APPLICATION
 class MainApp(ctk.CTk):
     def __init__(self):
         super().__init__()
+        self.appearance_manager = AppearanceManager()
+        self.sms_notifier = SMSNotifier()
+        self.registration_manager = RegistrationManager(self.sms_notifier)
 
         # Fixed size of the window, and cannot be resized
         self.resizable(False, False)
@@ -251,7 +165,7 @@ class MainApp(ctk.CTk):
 
         self.appearance_mode_menu=ctk.CTkOptionMenu(
             self.navigation_frame, values=["Dark", "Light"],
-            command=change_appearance_mode_event)
+            command=self.appearance_manager.change_mode)
         self.appearance_mode_menu.grid(row=10, column=0, padx=20, pady=10, sticky="s")
 
         self.logout_button=ctk.CTkButton(
